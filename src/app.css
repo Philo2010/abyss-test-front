@@ -77,3 +77,15 @@ button:focus-visible {
 	background-color: #f9f9f9;
 	}
 }
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.game-ended {
+  font-weight: 700;
+  color: #f87171;
+}

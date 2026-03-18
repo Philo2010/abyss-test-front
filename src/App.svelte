@@ -7,7 +7,7 @@
   import User from './User.svelte';
   import type { Packages } from './lib/proto/Packages';
   import type { Patch } from './lib/proto/Patch';
-  import { create_game, join_game, submit_scouter, update_value } from './lib/backend';
+  import { create_game, join_game, start_game, submit_scouter, update_value } from './lib/backend';
   import type { OptionalModelPatch } from './lib/proto/OptionalModelPatch';
   import Admin from './Admin.svelte';
   import type { Model } from './lib/proto/Model';
@@ -38,8 +38,8 @@
   applyPatch: (uuid: string, patch: OptionalModelPatch) => void;
   submitUser: (uuid: string, model: Model, defence: number, comment: string) => void;
 } | null = $state(null);
-    let game_ended: boolean = false;
-    let username: string = "";
+    let game_ended: boolean = $state(false);
+    let username: string = $state("");
 
     const socket = new WebSocket("ws://127.0.0.1:8001");
 
@@ -92,7 +92,7 @@
         table?.submitUser(pkg.user_uuid, pkg.data, pkg.defence, pkg.comment);
       } else if ("InformGameEnd" in data) {
         const pkg = data.InformGameEnd;
-        //we get
+        game_ended = true;
       } else if ("InformGameSend" in data) {
         const pkg = data.InformGameSend;
         //w
@@ -114,10 +114,24 @@
     });
 
     $effect(() => {
+  fuel_shoot_teleop;
+  if (!initialized) return;
+  if (typeof code === 'number' && is_user && typeof uuid == 'string')
+    update_value(socket, { Game: { FuelShootTeleop: fuel_shoot_teleop } }, code, uuid);
+});
+
+$effect(() => {
   fuel_pass_teleop;
   if (!initialized) return;
   if (typeof code === 'number' && is_user && typeof uuid == 'string')
     update_value(socket, { Game: { FuelPassTeleop: fuel_pass_teleop } }, code, uuid);
+});
+
+$effect(() => {
+  defence_main;
+  if (!initialized) return;
+  if (typeof code === 'number' && is_user && typeof uuid == 'string')
+    update_value(socket, { Game: { DefenceMain: defence_main } }, code, uuid);
 });
 
 $effect(() => {
@@ -224,8 +238,15 @@ function create() {
     onsubmit={submit}
   ></User>
 {:else if state_app == AppState.AdminView}
+  <div class="admin-header">
+    <span>Game Code: <strong>{code}</strong></span>
+    {#if game_ended}
+      <span class="game-ended">Game Over</span>
+    {:else}
+      <button onclick={() => { if (typeof code === 'number' && typeof uuid === 'string') start_game(socket, uuid, code); }}>
+        Start Game
+      </button>
+    {/if}
+  </div>
   <Admin bind:ref={table}/>
-  {#if game_ended}
-  <p>Game has endded!</p>
-  {/if}
 {/if}
