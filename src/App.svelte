@@ -1,10 +1,4 @@
 <script lang="ts">
-  enum AppState {
-    Wait,
-    User,
-    Admin
-  }
-
   import svelteLogo from './assets/svelte.svg'
   import viteLogo from './assets/vite.svg'
   import heroImg from './assets/hero.png'
@@ -13,13 +7,20 @@
   import User from './User.svelte';
   import type { Packages } from './lib/proto/Packages';
   import type { Patch } from './lib/proto/Patch';
-  import { update_value } from './lib/backend';
+  import { create_game, join_game, submit_scouter, update_value } from './lib/backend';
   import type { OptionalModelPatch } from './lib/proto/OptionalModelPatch';
   import Admin from './Admin.svelte';
+  import type { Model } from './lib/proto/Model';
+  import type { Stations } from './lib/proto/Stations';
+  enum AppState {
+    Wait,
+    User,
+    AdminView
+  }
 
-    let state_app = AppState.Wait;
-    let code: number | undefined = undefined;
-    let is_user: boolean = false;
+    let state_app = $state(AppState.Wait);
+    let code: number | undefined = $state(undefined);
+    let is_user: boolean = $state(false);
     let uuid: string | undefined = undefined;
     let defence_main: boolean = $state<boolean>(false);
     let fuel_shoot_teleop: number = $state<number>(0);
@@ -32,13 +33,21 @@
     let defence: number = $state<number>(0);
     let comment: string = $state<string>("");
     let station: string = "ERR: this is the times, i wonder if im worth the breath";
-    let table: ReturnType<typeof Admin>;
+    let table: {
+  addUser: (uuid: string, username: string, station: Stations) => void;
+  applyPatch: (uuid: string, patch: OptionalModelPatch) => void;
+  submitUser: (uuid: string, model: Model, defence: number, comment: string) => void;
+} | null = $state(null);
+    let game_ended: boolean = false;
+    let username: string = "";
 
     const socket = new WebSocket("ws://127.0.0.1:8001");
 
 
     socket.addEventListener("message", (event) => {
+      console.log(event);
       const data = JSON.parse(event.data) as Packages;
+      console.log(data);
 
       if (data === "Nop") {
         // Nop
@@ -50,7 +59,7 @@
         uuid = pkg.admin;
         is_user = false;
         code = pkg.code;
-        state_app = AppState.Admin;
+        state_app = AppState.AdminView;
       } else if ("LoginUser" in data) {
         //Nop
         const pkg = data.LoginUser;
@@ -62,25 +71,34 @@
         state_app = AppState.User;
       } else if ("LoginUserUpdateAdmin" in data) {
         const pkg = data.LoginUserUpdateAdmin;
-        add
+        table?.addUser(pkg.uuid, pkg.username, pkg.station);
       } else if ("StartGame" in data) {
         const pkg = data.StartGame;
+        //! TODO make the send (no need to resv)
       } else if ("StartGameReturn" in data) {
         const pkg = data.StartGameReturn;
+        //we ment to get this but we do nothing
       } else if ("UpdateValue" in data) {
         const pkg = data.UpdateValue;
+        //we send
       } else if ("UpdateInformAdmin" in data) {
         const pkg = data.UpdateInformAdmin;
+        table?.applyPatch(pkg.uuid, pkg.patch);
       } else if ("SubmitScouter" in data) {
+        //We send
         const pkg = data.SubmitScouter;
       } else if ("ReturnForAdmin" in data) {
         const pkg = data.ReturnForAdmin;
+        table?.submitUser(pkg.user_uuid, pkg.data, pkg.defence, pkg.comment);
       } else if ("InformGameEnd" in data) {
         const pkg = data.InformGameEnd;
+        //we get
       } else if ("InformGameSend" in data) {
         const pkg = data.InformGameSend;
+        //w
       } else if ("Error" in data) {
         const pkg = data.Error;
+        //idc
       }
     });
 
@@ -151,14 +169,46 @@ $effect(() => {
     update_value(socket, { Comment: comment }, code, uuid);
 });
 
+function submit() {
+  let final_model: Model = {
+    defence_main: defence_main,
+    fuel_shoot_teleop: fuel_shoot_teleop,
+    fuel_pass_teleop: fuel_pass_teleop,
+    fuel_shoot_auto: fuel_shoot_auto,
+    fuel_pass_auto: fuel_pass_auto,
+    climb_end: climb_end,
+    climb_auto: climb_auto,
+    beach_on_bump: beach_on_bump
+  };
+
+  if (typeof(code) == 'number' && typeof(uuid) == 'string') {
+    submit_scouter(socket, final_model, defence, comment, code, uuid);
+  }
+}
+
+function join() {
+  if (typeof(code) == 'number') {
+    join_game(socket, username, code);
+  }
+}
+
+function create() {
+  create_game(socket);
+}
+
 </script>
 
 
 {#if state_app == AppState.Wait}
   <!--Main code for selecting a match-->
+  <p>Username:</p>
+  <input bind:value={username}>
+  <p>Code:</p>
   <input type="number" bind:value={code}>
-  <button>Join</button>
-  <button>Create</button>
+  <br>  
+  <br>
+  <button onclick={join}>Join</button>
+  <button onclick={create}>Create</button>
 {:else if state_app == AppState.User}
   <User
     bind:defence_main={defence_main}
@@ -171,7 +221,11 @@ $effect(() => {
     bind:beach_on_bump={beach_on_bump}
     bind:defence={defence}
     bind:comment={comment}
+    onsubmit={submit}
   ></User>
-{:else}
-  <Admin bind:this={table}></Admin>
+{:else if state_app == AppState.AdminView}
+  <Admin bind:ref={table}/>
+  {#if game_ended}
+  <p>Game has endded!</p>
+  {/if}
 {/if}

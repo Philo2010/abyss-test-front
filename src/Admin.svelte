@@ -2,7 +2,6 @@
   import type { ClimbState } from './lib/proto/ClimbState';
   import type { Model } from './lib/proto/Model';
   import type { OptionalModelPatch } from './lib/proto/OptionalModelPatch';
-  import type { Patch } from './lib/proto/Patch';
   import type { Stations } from './lib/proto/Stations';
 
   type UserModel = {
@@ -21,15 +20,23 @@
     submitted: boolean;
   };
 
+  type AdminAPI = {
+    addUser: (uuid: string, username: string, station: Stations) => void;
+    applyPatch: (uuid: string, patch: OptionalModelPatch) => void;
+    submitUser: (uuid: string, model: Model, defence: number, comment: string) => void;
+  };
+
+  let { ref = $bindable(null) }: { ref?: AdminAPI | null } = $props();
+
   let users: Map<string, UserModel> = $state(new Map());
 
-  export function addUser(uuid: string, username: string, station: Stations) {
+  function addUser(uuid: string, username: string, station: Stations) {
     users.set(uuid, {
       username,
+      station,
       defence_main: false,
       fuel_shoot_teleop: 0,
       fuel_pass_teleop: 0,
-      station: station,
       fuel_shoot_auto: 0,
       fuel_pass_auto: 0,
       climb_end: "Nothing",
@@ -42,7 +49,7 @@
     users = new Map(users);
   }
 
-  export function applyPatch(uuid: string, patch: OptionalModelPatch) {
+  function applyPatch(uuid: string, patch: OptionalModelPatch) {
     const user = users.get(uuid);
     if (!user || user.submitted) return;
 
@@ -52,7 +59,7 @@
       user.comment = patch.Comment;
     } else if ("Game" in patch) {
       const p = patch.Game;
-      if ("DefenceMain" in p)       user.defence_main = p.DefenceMain;
+      if ("DefenceMain" in p)          user.defence_main = p.DefenceMain;
       else if ("FuelShootTeleop" in p) user.fuel_shoot_teleop = p.FuelShootTeleop;
       else if ("FuelPassTeleop" in p)  user.fuel_pass_teleop = p.FuelPassTeleop;
       else if ("FuelShootAuto" in p)   user.fuel_shoot_auto = p.FuelShootAuto;
@@ -65,7 +72,7 @@
     users = new Map(users);
   }
 
-  export function submitUser(uuid: string, model: Model) {
+  function submitUser(uuid: string, model: Model, defence: number, comment: string) {
     const user = users.get(uuid);
     if (!user) return;
 
@@ -77,96 +84,55 @@
     user.climb_end = model.climb_end;
     user.climb_auto = model.climb_auto;
     user.beach_on_bump = model.beach_on_bump;
+    user.defence = defence;
+    user.comment = comment;
     user.submitted = true;
 
     users = new Map(users);
   }
+
+  // Expose API to parent via ref prop
+  $effect(() => {
+    ref = { addUser, applyPatch, submitUser };
+    return () => { ref = null; };
+  });
 </script>
 
-<div class="container">
-  <table>
-    <thead>
+<table>
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Station</th>
+      <th>Defence Main</th>
+      <th>Fuel Shoot Teleop</th>
+      <th>Fuel Pass Teleop</th>
+      <th>Fuel Shoot Auto</th>
+      <th>Fuel Pass Auto</th>
+      <th>Climb End</th>
+      <th>Climb Auto</th>
+      <th>Beach on Bump</th>
+      <th>Defence</th>
+      <th>Comment</th>
+      <th>Submitted</th>
+    </tr>
+  </thead>
+  <tbody>
+    {#each [...users.entries()] as [uuid, user]}
       <tr>
-        <th>User</th>
-        <th>Station</th>
-        <th>Defence Main</th>
-        <th>Fuel Shoot Teleop</th>
-        <th>Fuel Pass Teleop</th>
-        <th>Fuel Shoot Auto</th>
-        <th>Fuel Pass Auto</th>
-        <th>Climb End</th>
-        <th>Climb Auto</th>
-        <th>Beach on Bump</th>
-        <th>Defence</th>
-        <th>Comment</th>
-        <th>Status</th>
+        <td>{user.username}</td>
+        <td>{user.station}</td>
+        <td>{user.defence_main}</td>
+        <td>{user.fuel_shoot_teleop}</td>
+        <td>{user.fuel_pass_teleop}</td>
+        <td>{user.fuel_shoot_auto}</td>
+        <td>{user.fuel_pass_auto}</td>
+        <td>{user.climb_end}</td>
+        <td>{user.climb_auto}</td>
+        <td>{user.beach_on_bump}</td>
+        <td>{user.defence}</td>
+        <td>{user.comment}</td>
+        <td>{user.submitted}</td>
       </tr>
-    </thead>
-    <tbody>
-      {#each [...users.entries()] as [uuid, user]}
-        <tr class:submitted={user.submitted}>
-          <td class="username">{user.username}</td>
-          <td class="station" class:red={user.station.startsWith('Red')} class:blue={user.station.startsWith('Blue')}>
-            {user.station}
-          </td>
-          <td>{user.defence_main ? '✓' : '✗'}</td>
-          <td>{user.fuel_shoot_teleop}</td>
-          <td>{user.fuel_pass_teleop}</td>
-          <td>{user.fuel_shoot_auto}</td>
-          <td>{user.fuel_pass_auto}</td>
-          <td>{user.climb_end}</td>
-          <td>{user.climb_auto}</td>
-          <td>{user.beach_on_bump ? '✓' : '✗'}</td>
-          <td>{user.defence}</td>
-          <td class="comment">{user.comment}</td>
-          <td>{user.submitted ? '✅ Done' : '⏳ Pending'}</td>
-        </tr>
-      {/each}
-    </tbody>
-  </table>
-</div>
-
-<style>
-  .container {
-    overflow-x: auto;
-    font-family: sans-serif;
-  }
-
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: 0.9rem;
-  }
-
-  th, td {
-    border: 1px solid #ccc;
-    padding: 0.5rem 0.75rem;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  th {
-    background: #f0f0f0;
-    font-weight: 600;
-  }
-
-  tr.submitted {
-    background-color: #d4edda;
-  }
-
-  tr:not(.submitted):hover {
-    background-color: #f9f9f9;
-  }
-
-  .username {
-    font-weight: 600;
-    text-align: left;
-  }
-
-  .comment {
-    text-align: left;
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-</style>
+    {/each}
+  </tbody>
+</table>
