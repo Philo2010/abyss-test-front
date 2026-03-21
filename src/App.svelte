@@ -37,8 +37,7 @@
   let game_ended: boolean = $state(false);
   let username: string = $state("");
 
-  const socket = new WebSocket("ws://127.0.0.1:8001");
-
+  const socket = new WebSocket("wss://sophia-subnotochordal-psychologically.ngrok-free.dev");
   socket.addEventListener("message", (event) => {
     console.log(event);
     const data = JSON.parse(event.data) as Packages;
