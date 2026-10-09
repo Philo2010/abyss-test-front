@@ -1,4 +1,5 @@
 import type { ClimbState } from './proto/ClimbState';
+import type { DefenceTarget } from './proto/DefenceTarget';
 import type { Stations } from './proto/Stations';
 
 export type UserModel = {
@@ -12,6 +13,10 @@ export type UserModel = {
   climb_end: ClimbState;
   climb_auto: ClimbState;
   beach_on_bump: boolean;
+  defence_target: DefenceTarget | null;
+  auto_time: number;
+  dead: boolean;
+  dnf: boolean;
   defence: number;
   comment: string;
   submitted: boolean;
